@@ -1,10 +1,7 @@
 package com.suntrustbank.transactions.providers.repository.models;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -12,6 +9,7 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.time.Instant;
 import java.util.Date;
 
 
@@ -29,11 +27,15 @@ public class DebitTransaction {
     @JoinColumn(name = "transaction_id", nullable = false)
     private Transaction transaction;
 
+    @Column(nullable = false, updatable = false)
+    private long createdAt;
 
-    @CreationTimestamp
-    private Date createdAt;
+    @Column(nullable = false)
+    private long updatedAt;
 
-    @UpdateTimestamp
-    private Date updatedAt;
-
+    @PrePersist
+    public void setUp() {
+        this.createdAt = Instant.now().toEpochMilli();
+        this.updatedAt = Instant.now().toEpochMilli();
+    }
 }

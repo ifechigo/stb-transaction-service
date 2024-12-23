@@ -15,6 +15,10 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.Base64;
 
 
@@ -73,9 +77,17 @@ public class AESUtil {
     public String encrypt(Object data) throws GenericErrorCodeException {
         SecretKey key = deriveKey();
         try {
+            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectStream = new ObjectOutputStream(byteStream);
+            objectStream.writeObject(data);
+            objectStream.flush();
+
+            byte[] serializedData = byteStream.toByteArray();
+
             Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, key);
-            byte[] encryptedBytes = cipher.doFinal((byte[]) data);
+            byte[] encryptedBytes = cipher.doFinal(serializedData);
+
             return Base64.getEncoder().encodeToString(encryptedBytes);
         } catch (Exception e) {
             log.info("Error Encrypting data:: {}", e.getMessage(), e);
@@ -84,19 +96,24 @@ public class AESUtil {
     }
 
     // Decrypt data
-    public String decrypt(String encryptedData) throws GenericErrorCodeException {
+    public Object decrypt(String encryptedData) throws GenericErrorCodeException {
         SecretKey key = deriveKey();
         try {
+            byte[] encryptedBytes = Base64.getDecoder().decode(encryptedData);
+
             Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, key);
-            byte[] decodedBytes = Base64.getDecoder().decode(encryptedData);
-            byte[] decryptedBytes = cipher.doFinal(decodedBytes);
-            return new String(decryptedBytes);
+            byte[] serializedData = cipher.doFinal(encryptedBytes);
+
+            ByteArrayInputStream byteStream = new ByteArrayInputStream(serializedData);
+            ObjectInputStream objectStream = new ObjectInputStream(byteStream);
+            return objectStream.readObject();
         } catch (Exception e) {
             log.info("Error Decrypting data:: {}", e.getMessage(), e);
             throw new GenericErrorCodeException("decryption failed", ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
         }
     }
+
 
     public boolean validatePin(String inputPin, String encryptedStoredPin) {
         try {

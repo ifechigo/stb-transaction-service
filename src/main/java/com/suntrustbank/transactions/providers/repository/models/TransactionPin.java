@@ -1,17 +1,16 @@
 package com.suntrustbank.transactions.providers.repository.models;
 
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
-import java.util.Date;
+import java.time.Instant;
 
 
 @Getter
@@ -23,13 +22,23 @@ public class TransactionPin {
     @Id
     private String id;
 
-    private String businessId;
+    @Column(nullable = false)
+    private String userId;
 
+    private String terminalId;
+
+    @Column(nullable = false)
     private String pin;
 
-    @CreationTimestamp
-    private Date createdAt;
+    @Column(nullable = false, updatable = false)
+    private long createdAt;
 
-    @UpdateTimestamp
-    private Date updatedAt;
+    @Column(nullable = false)
+    private long updatedAt;
+
+    @PrePersist
+    public void setUp() {
+        this.createdAt = Instant.now().toEpochMilli();
+        this.updatedAt = Instant.now().toEpochMilli();
+    }
 }

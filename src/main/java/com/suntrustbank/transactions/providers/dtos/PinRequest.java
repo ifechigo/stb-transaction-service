@@ -1,5 +1,6 @@
 package com.suntrustbank.transactions.providers.dtos;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -11,8 +12,8 @@ import java.util.Objects;
 @Getter
 @Setter
 public class PinRequest {
-    @NotBlank(message = "business id field cannot be empty")
-    private String  businessId;
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String initiatorId;
 
     @NotBlank(message = "new pin field cannot be empty")
     @Pattern(regexp = "\\d{4}", message = "pin must be exactly 4 digits")

@@ -26,7 +26,7 @@ public class GenericErrorCodeException extends RuntimeException {
             ErrorCode.UN_AUTHENTICATED, HttpStatus.UNAUTHORIZED);
     }
 
-    public static GenericErrorCodeException conflict(String message) {
+    public static GenericErrorCodeException badRequest(String message) {
         return new GenericErrorCodeException(message, ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
     }
 
@@ -37,5 +37,9 @@ public class GenericErrorCodeException extends RuntimeException {
     public static GenericErrorCodeException serverError() {
         return new GenericErrorCodeException(ErrorCode.INTERNAL_SERVER_ERROR.getDescription(),
             ErrorCode.INTERNAL_SERVER_ERROR, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    public static GenericErrorCodeException unAuthorizedToken() {
+        return new GenericErrorCodeException(ErrorCode.UN_AUTHENTICATED_TOKEN);
     }
 }

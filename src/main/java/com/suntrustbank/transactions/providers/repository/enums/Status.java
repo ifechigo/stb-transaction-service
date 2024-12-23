@@ -5,7 +5,7 @@ import lombok.Getter;
 
 @Getter
 public enum Status {
-    SUCCESSFUL,
+    SUCCESS,
     FAILED,
     PENDING,
     REFUNDED
