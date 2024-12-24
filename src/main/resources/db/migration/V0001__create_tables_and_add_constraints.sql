@@ -2,10 +2,9 @@
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name = 'transaction_pins' AND xtype = 'U')
 BEGIN
     CREATE TABLE transaction_pins (
-        id NVARCHAR(255) PRIMARY KEY,
-        user_id NVARCHAR(255) NOT NULL,
-        terminal_id NVARCHAR(255),
-        pin NVARCHAR(255) NOT NULL,
+        id NVARCHAR(50) PRIMARY KEY,
+        user_id NVARCHAR(50) NOT NULL,
+        pin NVARCHAR(150) NOT NULL,
         created_at BIGINT NOT NULL,
         updated_at BIGINT NOT NULL
     );
@@ -18,15 +17,15 @@ END;
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name = 'transactions' AND xtype = 'U')
 BEGIN
     CREATE TABLE transactions (
-        id NVARCHAR(255) PRIMARY KEY,
-        reference NVARCHAR(255) NOT NULL UNIQUE,
-        transaction_type NVARCHAR(255) NOT NULL,
-        amount DECIMAL(19, 4) NOT NULL,
-        fee FLOAT NOT NULL,
-        status NVARCHAR(255) NOT NULL,
-        status_description NVARCHAR(255),
+        id NVARCHAR(50) PRIMARY KEY,
+        initiator_id NVARCHAR(50) NOT NULL,
+        reference NVARCHAR(50) NOT NULL UNIQUE,
+        transaction_type NVARCHAR(30) NOT NULL,
         currency NVARCHAR(3) DEFAULT 'NGN',
-        initiator_id NVARCHAR(255) NOT NULL,
+        amount DECIMAL(19, 2) NOT NULL,
+        fee DECIMAL(5, 2) NOT NULL,
+        transaction_status NVARCHAR(30) NOT NULL,
+        status_description NVARCHAR(255),
         description NVARCHAR(255),
         created_at BIGINT NOT NULL,
         updated_at BIGINT NOT NULL
@@ -35,26 +34,26 @@ BEGIN
     -- Indexes
     CREATE INDEX IDX_transactions_reference ON transactions(reference);
     CREATE INDEX IDX_transactions_initiator_id ON transactions(initiator_id);
-    CREATE INDEX IDX_transactions_status ON transactions(status);
+    CREATE INDEX IDX_transactions_transaction_status ON transactions(transaction_status);
 END;
 
 -- Table: pos_transactions
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name = 'pos_transactions' AND xtype = 'U')
 BEGIN
     CREATE TABLE pos_transactions (
-        id NVARCHAR(255) PRIMARY KEY,
-        transaction_id NVARCHAR(255) NOT NULL,
+        id NVARCHAR(50) PRIMARY KEY,
+        transaction_id NVARCHAR(50) NOT NULL,
         transaction_date BIGINT NOT NULL,
-        pan NVARCHAR(255),
-        rrn NVARCHAR(255),
-        stan NVARCHAR(255),
-        account_agent_number NVARCHAR(255),
-        card_expiry NVARCHAR(255),
-        status_code NVARCHAR(255),
-        customer_name NVARCHAR(255),
-        terminal_id NVARCHAR(255),
-        serial_number NVARCHAR(255),
-        invoice_id NVARCHAR(255),
+        pan NVARCHAR(50),
+        rrn NVARCHAR(50),
+        stan NVARCHAR(50),
+        account_agent_number NVARCHAR(30),
+        card_expiry NVARCHAR(15),
+        status_code NVARCHAR(10),
+        customer_name NVARCHAR(50),
+        terminal_id NVARCHAR(50),
+        serial_number NVARCHAR(50),
+        invoice_id NVARCHAR(50),
         created_at BIGINT NOT NULL,
         updated_at BIGINT NOT NULL,
         CONSTRAINT FK_pos_transactions_transaction FOREIGN KEY (transaction_id)
@@ -70,8 +69,10 @@ END;
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name = 'debit_transactions' AND xtype = 'U')
 BEGIN
     CREATE TABLE debit_transactions (
-        id NVARCHAR(255) PRIMARY KEY,
-        transaction_id NVARCHAR(255) NOT NULL,
+        id NVARCHAR(50) PRIMARY KEY,
+        transaction_id NVARCHAR(50) NOT NULL,
+        source NVARCHAR(15) NOT NULL,
+        user_agent NVARCHAR(50) NOT NULL,
         created_at BIGINT NOT NULL,
         updated_at BIGINT NOT NULL,
         CONSTRAINT FK_debit_transactions_transaction FOREIGN KEY (transaction_id)
@@ -86,8 +87,8 @@ END;
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name = 'credit_transactions' AND xtype = 'U')
 BEGIN
     CREATE TABLE credit_transactions (
-        id NVARCHAR(255) PRIMARY KEY,
-        transaction_id NVARCHAR(255) NOT NULL,
+        id NVARCHAR(50) PRIMARY KEY,
+        transaction_id NVARCHAR(50) NOT NULL,
         created_at BIGINT NOT NULL,
         updated_at BIGINT NOT NULL,
         CONSTRAINT FK_credit_transactions_transaction FOREIGN KEY (transaction_id)

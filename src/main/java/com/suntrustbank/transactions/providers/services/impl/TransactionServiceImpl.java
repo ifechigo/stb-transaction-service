@@ -5,10 +5,12 @@ import com.suntrustbank.transactions.core.enums.BaseResponseMessage;
 import com.suntrustbank.transactions.core.enums.ErrorCode;
 import com.suntrustbank.transactions.core.errorhandling.exceptions.GenericErrorCodeException;
 import com.suntrustbank.transactions.core.utils.AESUtil;
-import com.suntrustbank.transactions.core.utils.TypeValidationUtil;
+import com.suntrustbank.transactions.core.utils.FieldValidatorUtil;
+import com.suntrustbank.transactions.core.utils.UUIDGenerator;
 import com.suntrustbank.transactions.providers.dtos.*;
+import com.suntrustbank.transactions.providers.dtos.enums.Source;
 import com.suntrustbank.transactions.providers.repository.*;
-import com.suntrustbank.transactions.providers.repository.enums.Status;
+import com.suntrustbank.transactions.providers.repository.enums.TransactionStatus;
 import com.suntrustbank.transactions.providers.repository.enums.TransactionType;
 import com.suntrustbank.transactions.providers.repository.models.*;
 import com.suntrustbank.transactions.providers.services.MessagingService;
@@ -23,8 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -39,15 +41,29 @@ public class TransactionServiceImpl implements TransactionService {
     private final MessagingService messagingService;
     private final AESUtil aesUtil;
 
+    private static final String INVALID_REQUEST = "invalid request";
+
 
     @Override
     public BaseResponse setPin(PinRequest request) throws GenericErrorCodeException {
         try {
+            String pin = aesUtil.decrypt(request.getPin(), String.class);
+            if (!pin.matches("\\d{4}")) {
+                throw GenericErrorCodeException.badRequest(INVALID_REQUEST);
+            }
+
+            Optional<TransactionPin> existingTransactionPin = transactionPinRepository.findByUserId(request.getInitiatorId());
+            if (existingTransactionPin.isPresent()) {
+                return BaseResponse.success("transaction pin already exist", BaseResponseMessage.SUCCESSFUL);
+            }
+
             TransactionPin transactionPin = new TransactionPin();
-            transactionPin.setId(UUID.randomUUID().toString());
+            transactionPin.setId(UUIDGenerator.generate());
             transactionPin.setUserId(request.getInitiatorId());
-            transactionPin.setPin(aesUtil.encrypt(request.getNewPin()));
+            transactionPin.setPin(request.getPin());
             transactionPinRepository.save(transactionPin);
+        } catch (GenericErrorCodeException e) {
+            throw GenericErrorCodeException.badRequest(INVALID_REQUEST);
         } catch (Exception e) {
             throw new GenericErrorCodeException("failed to set transaction pin, please try again", ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
         }
@@ -72,24 +88,25 @@ public class TransactionServiceImpl implements TransactionService {
         return BaseResponse.success("Processing", BaseResponseMessage.SUCCESSFUL);
     }
 
+    @Transactional
     public BaseResponse creditVirtualAccountViaPOS(POSRequest request) throws GenericErrorCodeException {
-        Optional<POSTransaction> existingTransaction = transactionRepository.findByReference(request.getReference());
+        Optional<Transaction> existingTransaction = transactionRepository.findByReference(request.getReference());
         if (existingTransaction.isPresent()) {
             throw GenericErrorCodeException.badRequest("duplicate transaction");
         }
 
         Transaction transaction = new Transaction();
-        transaction.setId(UUID.randomUUID().toString());
+        transaction.setId(UUIDGenerator.generate());
         transaction.setInitiatorId(request.getInitiatorId());
         transaction.setReference(request.getReference());
         transaction.setTransactionType(TransactionType.POS);
         transaction.setAmount(BigDecimal.valueOf(request.getAmount()));
         transaction.setFee(request.getServiceFee());
-        transaction.setStatus(Status.valueOf(request.getStatus().toUpperCase()));
-        transaction.setStatusDescription(request.getStatusDescription());
+        transaction.setTransactionStatus(TransactionStatus.PENDING);
+        transaction.setStatusDescription("Processing");
         transactionRepository.save(transaction);
         POSTransaction posTransaction = new POSTransaction();
-        posTransaction.setId(UUID.randomUUID().toString());
+        posTransaction.setId(UUIDGenerator.generate());
         posTransaction.setTransaction(transaction);
         posTransaction.setTransactionDate(request.getTransactionDate());
         posTransaction.setAccountAgentNumber(request.getAgentAccountNumber());
@@ -108,46 +125,63 @@ public class TransactionServiceImpl implements TransactionService {
             throw GenericErrorCodeException.badRequest("request cannot be processed because the transaction failed");
         }
 
-        return BaseResponse.success(transaction, BaseResponseMessage.SUCCESSFUL);
+        transaction.setTransactionStatus(TransactionStatus.SUCCESS);
+        transaction.setStatusDescription("Approved");
+        transaction.setUpdatedAt(Instant.now().toEpochMilli());
+        transactionRepository.save(transaction);
+
+        return BaseResponse.success(posTransaction, BaseResponseMessage.SUCCESSFUL);
     }
 
     @Transactional
-    public BaseResponse transfer(EncryptedRequest request, String initiatorId) throws GenericErrorCodeException {
-        TransferRequest req;
-
+    public BaseResponse transfer(EncryptedRequest request) throws GenericErrorCodeException {
+        TransferRequest transferRequest;
         try {
-            req = TypeValidationUtil.validateType(aesUtil.decrypt(request.getData()), TransferRequest.class);
+            transferRequest = aesUtil.decrypt(request.getData(), TransferRequest.class);
+            FieldValidatorUtil.validate(transferRequest);
+            Source.valueOf(transferRequest.getSource());
         } catch (Exception e) {
-            log.info("Invalid transfer request: Error {}", e.getMessage(), e);
-            throw GenericErrorCodeException.badRequest("invalid request");
+            log.info("==> invalid transfer request. Error: [{}]", e.getMessage(), e);
+            throw GenericErrorCodeException.badRequest(INVALID_REQUEST);
         }
 
-        Optional<TransactionPin> transactionPin = transactionPinRepository.findByUserId(initiatorId);
+        Optional<TransactionPin> transactionPin = transactionPinRepository.findByUserId(request.getInitiatorId());
         if (transactionPin.isEmpty()) {
-            throw new GenericErrorCodeException("invalid business", ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
+            log.info("==> invalid user");
+            throw GenericErrorCodeException.badRequest(INVALID_REQUEST);
         }
 
-        if (!req.getPin().equals(transactionPin.get().getPin())) {
-            throw new GenericErrorCodeException("invalid pin", ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
+        if (!transferRequest.getPin().equals(transactionPin.get().getPin())) {
+            log.info("==> invalid pin");
+            throw GenericErrorCodeException.badRequest(INVALID_REQUEST);
         }
 
         Transaction transaction = new Transaction();
-        transaction.setId(UUID.randomUUID().toString());
-        transaction.setInitiatorId(initiatorId);
-        transaction.setReference(UUID.randomUUID().toString());
-        transaction.setTransactionType(TransactionType.DEBIT);
-        transaction.setAmount(req.getAmount());
+        transaction.setId(UUIDGenerator.generate());
+        transaction.setInitiatorId(request.getInitiatorId());
+        transaction.setReference(UUIDGenerator.generate());
+        transaction.setTransactionType(TransactionType.TRANSFER);
+        transaction.setAmount(transferRequest.getAmount());
         transaction.setFee(0);
-        transaction.setDescription(req.getDescription());
-        transaction.setStatus(Status.SUCCESS);
-        transaction.setStatusDescription("Approved");
+        transaction.setDescription(transferRequest.getDescription());
+        transaction.setTransactionStatus(TransactionStatus.PENDING);
+        transaction.setStatusDescription("Processing");
         transactionRepository.save(transaction);
         DebitTransaction debitTransaction = new DebitTransaction();
-        debitTransaction.setId(UUID.randomUUID().toString());
+        debitTransaction.setId(UUIDGenerator.generate());
         debitTransaction.setTransaction(transaction);
+        debitTransaction.setSource(Source.valueOf(transferRequest.getSource()));
+        debitTransaction.setUserAgent(request.getUserAgent());
         debitTransactionRepository.save(debitTransaction);
 
-        messagingService.notifyPayment(req);
+        EncryptedRequest newEncryptedRequest = new EncryptedRequest();
+        newEncryptedRequest.setData(aesUtil.encrypt(transferRequest));
+        messagingService.notifyPayment(newEncryptedRequest);
+
+        transaction.setTransactionStatus(TransactionStatus.SUCCESS);
+        transaction.setStatusDescription("Approved");
+        transaction.setUpdatedAt(Instant.now().toEpochMilli());
+        transactionRepository.save(transaction);
 
         return BaseResponse.success(debitTransaction, BaseResponseMessage.SUCCESSFUL);
     }

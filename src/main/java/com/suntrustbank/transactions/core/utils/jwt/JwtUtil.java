@@ -16,6 +16,7 @@ public class JwtUtil {
     private static final int MAX_LENGTH = 3;
     public static final String BEARER = "Bearer";
     public static final String USER_NAME = "preferred_username";
+    public static final String USER_AGENT = "user-agent";
 
     /**
      * Gets the specified data value from

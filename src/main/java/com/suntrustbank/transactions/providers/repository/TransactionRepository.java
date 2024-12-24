@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, String> {
-    Optional<POSTransaction> findByReference(String reference);
+    Optional<Transaction> findByReference(String reference);
 
     List<Transaction> findAllByInitiatorId(@Param("initiatorId") String initiatorId, Pageable pageable);
 }

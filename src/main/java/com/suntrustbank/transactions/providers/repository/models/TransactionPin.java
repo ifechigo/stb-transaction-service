@@ -25,8 +25,6 @@ public class TransactionPin {
     @Column(nullable = false)
     private String userId;
 
-    private String terminalId;
-
     @Column(nullable = false)
     private String pin;
 

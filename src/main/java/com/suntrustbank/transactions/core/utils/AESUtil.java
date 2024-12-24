@@ -15,10 +15,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 
@@ -35,7 +32,7 @@ public class AESUtil {
 
     private static final String AES_ALGORITHM = "AES";
     private static final String PWH_ALGORITHM = "PBKDF2WithHmacSHA256";
-
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     private char[] getPassphrase() {
         if (StringUtils.isBlank(passphrase)) {
@@ -60,67 +57,49 @@ public class AESUtil {
         }
     }
 
-    // Encrypt data
-    public String encrypt(String data) throws GenericErrorCodeException {
-        SecretKey key = deriveKey();
-        try {
-            Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, key);
-            byte[] encryptedBytes = cipher.doFinal(data.getBytes());
-            return Base64.getEncoder().encodeToString(encryptedBytes);
-        } catch (Exception e) {
-            log.info("Error Encrypting data:: {}", e.getMessage(), e);
-            throw new GenericErrorCodeException("encryption failed", ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
-        }
-    }
-
     public String encrypt(Object data) throws GenericErrorCodeException {
         SecretKey key = deriveKey();
         try {
-            ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-            ObjectOutputStream objectStream = new ObjectOutputStream(byteStream);
-            objectStream.writeObject(data);
-            objectStream.flush();
-
-            byte[] serializedData = byteStream.toByteArray();
+            String jsonData = (data instanceof String)
+                    ? (String) data
+                    : objectMapper.writeValueAsString(data);
 
             Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, key);
-            byte[] encryptedBytes = cipher.doFinal(serializedData);
+            byte[] encryptedBytes = cipher.doFinal(jsonData.getBytes(StandardCharsets.UTF_8));
 
             return Base64.getEncoder().encodeToString(encryptedBytes);
         } catch (Exception e) {
             log.info("Error Encrypting data:: {}", e.getMessage(), e);
-            throw new GenericErrorCodeException("encryption failed", ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
+            throw GenericErrorCodeException.serverError();
         }
     }
 
-    // Decrypt data
-    public Object decrypt(String encryptedData) throws GenericErrorCodeException {
+    public <T> T decrypt(String encryptedData, Class<T> targetType) throws GenericErrorCodeException {
         SecretKey key = deriveKey();
         try {
             byte[] encryptedBytes = Base64.getDecoder().decode(encryptedData);
 
             Cipher cipher = Cipher.getInstance(AES_ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, key);
-            byte[] serializedData = cipher.doFinal(encryptedBytes);
+            String decryptedString = new String(cipher.doFinal(encryptedBytes), StandardCharsets.UTF_8);
 
-            ByteArrayInputStream byteStream = new ByteArrayInputStream(serializedData);
-            ObjectInputStream objectStream = new ObjectInputStream(byteStream);
-            return objectStream.readObject();
+            if (isValidJson(decryptedString)) {
+                return objectMapper.readValue(decryptedString, targetType);
+            } else {
+                return (T) decryptedString;
+            }
         } catch (Exception e) {
             log.info("Error Decrypting data:: {}", e.getMessage(), e);
-            throw new GenericErrorCodeException("decryption failed", ErrorCode.BAD_REQUEST, HttpStatus.BAD_REQUEST);
+            throw GenericErrorCodeException.badRequest("invalid request");
         }
     }
 
-
-    public boolean validatePin(String inputPin, String encryptedStoredPin) {
+    private boolean isValidJson(String data) {
         try {
-            String encryptedInputPin = encrypt(inputPin);
-            return encryptedInputPin.equals(encryptedStoredPin);
-        } catch (GenericErrorCodeException e) {
-            log.info("Error Validating PIN:: {}", e.getMessage(), e);
+            objectMapper.readTree(data);
+            return true;
+        } catch (Exception e) {
             return false;
         }
     }

@@ -1,7 +1,6 @@
 package com.suntrustbank.transactions.providers.repository.models;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.suntrustbank.transactions.providers.repository.enums.Status;
+import com.suntrustbank.transactions.providers.repository.enums.TransactionStatus;
 import com.suntrustbank.transactions.providers.repository.enums.TransactionType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -33,7 +32,9 @@ public class Transaction {
 
     private double fee;
 
-    private Status status;
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private TransactionStatus transactionStatus;
 
     private  String statusDescription;
 

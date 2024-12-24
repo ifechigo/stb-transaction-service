@@ -1,6 +1,7 @@
 package com.suntrustbank.transactions.providers.repository.models;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.suntrustbank.transactions.providers.dtos.enums.Source;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -26,6 +27,11 @@ public class DebitTransaction {
     @OneToOne
     @JoinColumn(name = "transaction_id", nullable = false)
     private Transaction transaction;
+
+    @Enumerated(EnumType.STRING)
+    private Source source;
+
+    private String userAgent;
 
     @Column(nullable = false, updatable = false)
     private long createdAt;

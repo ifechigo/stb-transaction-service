@@ -8,6 +8,6 @@ public interface TransactionService {
     BaseResponse setPin(PinRequest request) throws GenericErrorCodeException;
     BaseResponse creditVirtualAccountViaTransfer(CreditWebhook webhook) throws GenericErrorCodeException;
     BaseResponse creditVirtualAccountViaPOS(POSRequest request) throws GenericErrorCodeException;
-    BaseResponse transfer(EncryptedRequest request, String initiatorId) throws GenericErrorCodeException;
+    BaseResponse transfer(EncryptedRequest request) throws GenericErrorCodeException;
     BaseResponse getAll(String initiatorId) throws GenericErrorCodeException;
 }

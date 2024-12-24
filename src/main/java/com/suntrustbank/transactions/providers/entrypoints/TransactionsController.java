@@ -5,16 +5,16 @@ import com.suntrustbank.transactions.core.errorhandling.exceptions.GenericErrorC
 import com.suntrustbank.transactions.core.utils.jwt.JwtUtil;
 import com.suntrustbank.transactions.providers.dtos.*;
 import com.suntrustbank.transactions.providers.services.TransactionService;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.apache.tomcat.util.http.parser.Authorization;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import static com.suntrustbank.transactions.core.utils.jwt.JwtUtil.USER_NAME;
+import static com.suntrustbank.transactions.core.utils.jwt.JwtUtil.USER_AGENT;
 
 @RestController
+@RequestMapping("/v1/transaction")
 @RequiredArgsConstructor
 public class TransactionsController {
 
@@ -43,9 +43,11 @@ public class TransactionsController {
     }
 
     @PostMapping("/debit/transfer")
-    public ResponseEntity debitAccountViaTransfer(@RequestHeader("Authorization") String authorizationHeader, @RequestBody @Validated EncryptedRequest encryptedRequest) throws GenericErrorCodeException {
+    public ResponseEntity debitAccountViaTransfer(@RequestHeader("Authorization") String authorizationHeader, @RequestHeader(USER_AGENT) String userAgent ,@RequestBody @Validated EncryptedRequest encryptedRequest) throws GenericErrorCodeException {
         var userId = (String) jwtService.extractAllClaims(authorizationHeader, USER_NAME).orElseThrow(GenericErrorCodeException::unAuthorizedToken);
-        return ResponseEntity.ok(transactionService.transfer(encryptedRequest, userId));
+        encryptedRequest.setInitiatorId(userId);
+        encryptedRequest.setUserAgent(userAgent);
+        return ResponseEntity.ok(transactionService.transfer(encryptedRequest));
     }
 
 
